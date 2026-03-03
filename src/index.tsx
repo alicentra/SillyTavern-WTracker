@@ -34,14 +34,14 @@ if (!Handlebars.helpers['join']) {
 }
 
 if (!Handlebars.helpers['rangeText']) {
-  Handlebars.registerHelper('rangeText', function (value: any, min: any, max: any, text: any) {
+  Handlebars.registerHelper('rangeText', function (value: any, min: any, max: any, textIfTrue: any, textIfFalse: any) {
     const numValue = Number(value);
     const numMin = Number(min);
     const numMax = Number(max);
     if (numValue >= numMin && numValue <= numMax) {
-      return text;
+      return textIfTrue;
     }
-    return '';
+    return textIfFalse;
   });
 }
 
@@ -56,12 +56,17 @@ function renderTracker(messageId: number) {
 
   const trackerData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
   const trackerHtmlSchema = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY];
+  const relationshipValue = message.extra[EXTENSION_KEY]['relationshipValue'];
   if (!trackerData || !trackerHtmlSchema) return;
 
   if (!messageBlock) return;
 
   const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true, strict: true });
-  const renderedHtml = template({ data: trackerData });
+  const contextData = {
+    data: trackerData,
+    relationshipValue: relationshipValue !== undefined ? relationshipValue : 50,
+  };
+  const renderedHtml = template(contextData);
   const container = document.createElement('div');
   container.className = 'mes_wtracker';
   container.innerHTML = renderedHtml;
@@ -308,9 +313,23 @@ async function generateTracker(id: number) {
 
     if (!response || Object.keys(response as any).length === 0) throw new Error('Empty response from WTracker.');
 
-    // Tentatively update message and try to render
+    // Extract Approval value and calculate relationshipValue
+    const approval = (response as any).character?.Approval || 'Neutral';
+    let relationshipValue = message.extra?.[EXTENSION_KEY]?.['relationshipValue'] || 50; // Default to 50 if not set
+
+    if (approval === 'Positive') {
+      relationshipValue = Math.min(relationshipValue + 1, 100);
+    } else if (approval === 'Negative') {
+      relationshipValue = Math.max(relationshipValue - 1, 0);
+    }
+    // Neutral: no change
+
+    // Store relationshipValue separately so LLM cannot modify it
     message.extra = message.extra || {};
     message.extra[EXTENSION_KEY] = message.extra[EXTENSION_KEY] || {};
+    message.extra[EXTENSION_KEY]['relationshipValue'] = relationshipValue;
+
+    // Tentatively update message and try to render
     message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = response;
     message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY] = chatHtmlValue;
 

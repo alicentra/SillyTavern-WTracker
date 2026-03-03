@@ -222,11 +222,10 @@ export const DEFAULT_SCHEMA_VALUE: object = {
           "type": "string",
           "description": "Character's UPDATED mood based on her last response"
         },
-        "relationshipValue": {
-          "type": "number",
-          "description": "Character's relationship value with user (0-100)",
-          "minimum": 0,
-          "maximum": 100
+        "Approval": {
+          "type": "string",
+          "description": "How the character feels about the user's last action (Positive, Neutral, or Negative)",
+          "enum": ["Positive", "Neutral", "Negative"]
         }
       },
       "required": [
@@ -235,7 +234,7 @@ export const DEFAULT_SCHEMA_VALUE: object = {
         "inventoryItems",
         "moveset",
         "mood",
-        "relationshipValue"
+        "Approval"
       ]
     }
   },
@@ -367,14 +366,18 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
                 <td>{{data.character.mood}}</td>
             </tr>
             <tr>
+                <td>Approval:</td>
+                <td>{{data.character.Approval}}</td>
+            </tr>
+            <tr>
                 <td>Relationship Stage:</td>
                 <td>
-                    {{rangeText data.character.relationshipValue 0 20 'Stranger'}}
-                    {{rangeText data.character.relationshipValue 21 40 'Acquaintance'}}
-                    {{rangeText data.character.relationshipValue 41 60 'Friend'}}
-                    {{rangeText data.character.relationshipValue 61 80 'Close Friend'}}
-                    {{rangeText data.character.relationshipValue 81 100 'Intimate'}}
-                    ({{data.character.relationshipValue}}/100)
+                    {{rangeText relationshipValue 0 20 'Stranger' ''}}
+                    {{rangeText relationshipValue 21 40 'Acquaintance' ''}}
+                    {{rangeText relationshipValue 41 60 'Friend' ''}}
+                    {{rangeText relationshipValue 61 80 'Close Friend' ''}}
+                    {{rangeText relationshipValue 81 100 'Intimate' ''}}
+                    ({{relationshipValue}}/100)
                 </td>
             </tr>
         </tbody>

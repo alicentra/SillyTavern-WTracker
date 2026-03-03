@@ -313,8 +313,8 @@ async function generateTracker(id: number) {
 
     if (!response || Object.keys(response as any).length === 0) throw new Error('Empty response from WTracker.');
 
-    // Extract Approval value and calculate relationshipValue
-    const approval = (response as any).character?.Approval || 'Neutral';
+    // Extract approval value and calculate relationshipValue
+    const approval = (response as any).character?.approval || 'Neutral';
     let relationshipValue = message.extra?.[EXTENSION_KEY]?.['relationshipValue'] || 50; // Default to 50 if not set
 
     if (approval === 'Positive') {

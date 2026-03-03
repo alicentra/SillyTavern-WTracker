@@ -218,14 +218,14 @@ export const DEFAULT_SCHEMA_VALUE: object = {
           },
           "description": "List of character's moves"
         },
-        "mood": {
-          "type": "string",
-          "description": "Character's UPDATED mood based on her last response"
-        },
-        "Approval": {
+        "approval": {
           "type": "string",
           "description": "How the character feels about the user's last action (Positive, Neutral, or Negative)",
           "enum": ["Positive", "Neutral", "Negative"]
+        },
+        "mood": {
+          "type": "string",
+          "description": "Character's UPDATED mood based on her last response"
         }
       },
       "required": [
@@ -233,8 +233,8 @@ export const DEFAULT_SCHEMA_VALUE: object = {
         "attire",
         "inventoryItems",
         "moveset",
-        "mood",
-        "Approval"
+        "approval",
+        "mood"
       ]
     }
   },
@@ -362,15 +362,15 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
                 </td>
             </tr>
             <tr>
+                <td>Approval:</td>
+                <td>{{data.character.approval}}</td>
+            </tr>
+            <tr>
                 <td>Mood:</td>
                 <td>{{data.character.mood}}</td>
             </tr>
             <tr>
-                <td>Approval:</td>
-                <td>{{data.character.Approval}}</td>
-            </tr>
-            <tr>
-                <td>Relationship Stage:</td>
+                <td>Relationship:</td>
                 <td>
                     {{rangeText relationshipValue 0 20 'Stranger' ''}}
                     {{rangeText relationshipValue 21 40 'Acquaintance' ''}}

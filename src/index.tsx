@@ -84,6 +84,18 @@ function renderTracker(messageId: number) {
   messageBlock.querySelector('.mes_text')?.before(container);
 }
 
+function getPreviousRelationshipValue(currentMessageId: number): number {
+  // Search backwards from the current message to find the last tracker with a relationshipValue
+  for (let i = currentMessageId - 1; i >= 0; i--) {
+    const message = globalContext.chat[i];
+    if (message?.extra?.[EXTENSION_KEY]?.['relationshipValue'] !== undefined) {
+      return message.extra[EXTENSION_KEY]['relationshipValue'];
+    }
+  }
+  // Default to 50 if no previous value found
+  return 50;
+}
+
 function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[], settings: ExtensionSettings): T[] {
   let copyMessages = structuredClone(messages);
   if (settings.includeLastXWTrackerMessages > 0) {
@@ -315,7 +327,7 @@ async function generateTracker(id: number) {
 
     // Extract approval value and calculate relationshipValue
     const approval = (response as any).character?.approval || 'Neutral';
-    let relationshipValue = message.extra?.[EXTENSION_KEY]?.['relationshipValue'] || 50; // Default to 50 if not set
+    let relationshipValue = getPreviousRelationshipValue(id);
 
     if (approval === 'Positive') {
       relationshipValue = Math.min(relationshipValue + 1, 100);

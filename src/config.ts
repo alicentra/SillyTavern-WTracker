@@ -91,7 +91,7 @@ export const DEFAULT_PROMPT_XML = `You are a highly specialized AI assistant. Yo
 \`\`\`
 `;
 
-export const DEFAULT_SCHEMA_VALUE: object = {
+export const OLD_DEFAULT_SCHEMA_VALUE: object = {
   $schema: 'http://json-schema.org/draft-07/schema#',
   title: 'SceneTracker',
   description: 'Schema for tracking roleplay scene details',
@@ -173,7 +173,81 @@ export const DEFAULT_SCHEMA_VALUE: object = {
   required: ['time', 'location', 'weather', 'topics', 'charactersPresent', 'characters'],
 };
 
-export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
+export const DEFAULT_SCHEMA_VALUE: object = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SceneTracker",
+  "description": "Schema for tracking roleplay scene details",
+  "type": "object",
+  "properties": {
+    "location": {
+      "type": "string",
+      "description": "Specific scene location with increasing specificity"
+    },
+    "time": {
+      "type": "string",
+      "description": "Part of the day and UPDATED time (Format: HH:MM)"
+    },
+    "weather": {
+      "type": "string",
+      "description": "Current weather in 1-2 words"
+    },
+    "character": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Full name of the character"
+        },
+        "attire": {
+          "type": "string",
+          "description": "Character's complete attire or 'Nude'"
+        },
+        "inventoryItems": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "Item name in 1-2 words"
+          },
+          "description": "List of items in character's inventory or 'Empty'"
+        },
+        "moveset": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "List of all moves the character knows (KEEP UPDATED)"
+          },
+          "description": "List of character's moves"
+        },
+        "mood": {
+          "type": "string",
+          "description": "Character's UPDATED mood based on her last response"
+        },
+        "relationshipValue": {
+          "type": "number",
+          "description": "Character's relationship value with user (0-100)",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "name",
+        "attire",
+        "inventoryItems",
+        "moveset",
+        "mood",
+        "relationshipValue"
+      ]
+    }
+  },
+  "required": [
+    "time",
+    "location",
+    "weather",
+    "character"
+  ]
+};
+
+export const OLD_DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
     <!-- Main Scene Information -->
     <table>
         <tbody>
@@ -247,6 +321,69 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
             {{/each}}
         </div>
     </details>
+</div>
+<hr>`;
+
+export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
+    <!-- Main Scene Information -->
+    <table>
+        <tbody>
+            <tr>
+                <td>Location:</td>
+                <td>{{data.location}}</td>
+            </tr>
+            <tr>
+                <td>Time:</td>
+                <td>{{data.time}}</td>
+            </tr>
+            <tr>
+                <td>Weather:</td>
+                <td>{{data.weather}}</td>
+            </tr>
+            <tr>
+                <td>Name:</td>
+                <td>{{data.character.name}}</td>
+            </tr>
+            <tr>
+                <td>Attire:</td>
+                <td>{{data.character.attire}}</td>
+            </tr>
+            <tr>
+                <td>Inventory:</td>
+                <td>
+                    <!-- Joining an array of strings. Assumes a 'join' helper. -->
+                    {{join data.character.inventoryItems ', '}}
+                </td>
+            </tr>
+            <tr>
+                <td>Moveset:</td>
+                <td>
+                    <!-- Joining an array of strings. Assumes a 'join' helper. -->
+                    {{join data.character.moveset ', '}}
+                </td>
+            </tr>
+            <tr>
+                <td>Mood:</td>
+                <td>{{data.character.mood}}</td>
+            </tr>
+            <tr>
+                <td>Relationship Stage:</td>
+                <td>
+                    {{#if (lte data.character.relationshipValue 20)}}
+                        Stranger ({{data.character.relationshipValue}}/100)
+                    {{else if (lte data.character.relationshipValue 40)}}
+                        Acquaintance ({{data.character.relationshipValue}}/100)
+                    {{else if (lte data.character.relationshipValue 60)}}
+                        Friend ({{data.character.relationshipValue}}/100)
+                    {{else if (lte data.character.relationshipValue 80)}}
+                        Close Friend ({{data.character.relationshipValue}}/100)
+                    {{else}}
+                        Intimate ({{data.character.relationshipValue}}/100)
+                    {{/if}}
+                </td>
+            </tr>
+        </tbody>
+    </table>
 </div>
 <hr>`;
 

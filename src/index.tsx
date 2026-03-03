@@ -33,6 +33,12 @@ if (!Handlebars.helpers['join']) {
   });
 }
 
+if (!Handlebars.helpers['lte']) {
+  Handlebars.registerHelper('lte', function (value: any, threshold: any) {
+    return Number(value) <= Number(threshold);
+  });
+}
+
 // --- Core Logic Functions (ported from original index.ts) ---
 
 function renderTracker(messageId: number) {

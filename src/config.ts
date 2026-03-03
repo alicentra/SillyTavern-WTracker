@@ -369,17 +369,12 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
             <tr>
                 <td>Relationship Stage:</td>
                 <td>
-                    {{#if (lte data.character.relationshipValue 20)}}
-                        Stranger ({{data.character.relationshipValue}}/100)
-                    {{else if (lte data.character.relationshipValue 40)}}
-                        Acquaintance ({{data.character.relationshipValue}}/100)
-                    {{else if (lte data.character.relationshipValue 60)}}
-                        Friend ({{data.character.relationshipValue}}/100)
-                    {{else if (lte data.character.relationshipValue 80)}}
-                        Close Friend ({{data.character.relationshipValue}}/100)
-                    {{else}}
-                        Intimate ({{data.character.relationshipValue}}/100)
-                    {{/if}}
+                    {{rangeText data.character.relationshipValue 0 20 'Stranger'}}
+                    {{rangeText data.character.relationshipValue 21 40 'Acquaintance'}}
+                    {{rangeText data.character.relationshipValue 41 60 'Friend'}}
+                    {{rangeText data.character.relationshipValue 61 80 'Close Friend'}}
+                    {{rangeText data.character.relationshipValue 81 100 'Intimate'}}
+                    ({{data.character.relationshipValue}}/100)
                 </td>
             </tr>
         </tbody>

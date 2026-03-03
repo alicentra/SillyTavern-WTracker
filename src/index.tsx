@@ -33,9 +33,15 @@ if (!Handlebars.helpers['join']) {
   });
 }
 
-if (!Handlebars.helpers['lte']) {
-  Handlebars.registerHelper('lte', function (value: any, threshold: any) {
-    return Number(value) <= Number(threshold);
+if (!Handlebars.helpers['rangeText']) {
+  Handlebars.registerHelper('rangeText', function (value: any, min: any, max: any, text: any) {
+    const numValue = Number(value);
+    const numMin = Number(min);
+    const numMax = Number(max);
+    if (numValue >= numMin && numValue <= numMax) {
+      return text;
+    }
+    return '';
   });
 }
 

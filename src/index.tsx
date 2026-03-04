@@ -96,6 +96,15 @@ function getPreviousRelationshipValue(currentMessageId: number): number {
   return 50;
 }
 
+function getRelationshipLabel(value: number | undefined): string {
+  const val = value ?? 50;
+  if (val <= 20) return 'Stranger';
+  if (val <= 40) return 'Acquaintance';
+  if (val <= 60) return 'Friend';
+  if (val <= 80) return 'Close Friend';
+  return 'Intimate';
+}
+
 function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[], settings: ExtensionSettings): T[] {
   let copyMessages = structuredClone(messages);
   if (settings.includeLastXWTrackerMessages > 0) {
@@ -118,7 +127,9 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
       if (foundMessage) {
         const extra =
           'source' in foundMessage ? (foundMessage as Message).source?.extra : (foundMessage as ChatMessage).extra;
-        const content = `Status:\n\`\`\`json\n${JSON.stringify(extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}', null, 2)}\n\`\`\``;
+        const relationshipValue = extra?.[EXTENSION_KEY]?.['relationshipValue'];
+        const relationshipLabel = getRelationshipLabel(relationshipValue);
+        const content = `Status:\n\`\`\`json\n${JSON.stringify(extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}', null, 2)}\n\`\`\`\n\nRelationship: ${relationshipLabel} (${relationshipValue ?? 50}/100)`;
         copyMessages.splice(foundIndex, 0, {
           content,
           role: 'system',

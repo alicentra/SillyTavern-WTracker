@@ -106,7 +106,7 @@ function parseTrackerHtmlToText(html: string): string {
     const cells = row.querySelectorAll('td');
     if (cells.length === 2) {
       const label = cells[0].textContent?.trim().replace(':', '');
-      const value = cells[1].textContent?.trim();
+      const value = cells[1].textContent?.trim().replace(/\s+/g, ' ');
       if (label && value) {
         lines.push(`${label}: ${value}`);
       }
@@ -151,14 +151,14 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
         };
         const renderedHtml = template(contextData);
         const parsedText = parseTrackerHtmlToText(renderedHtml);
-        const content = `Status:\n${parsedText}`;
+        const content = `**STATUS BEGIN**\n${parsedText}\n**STATUS END**`;
         copyMessages.splice(foundIndex, 0, {
           content,
-          role: 'system',
+          role: 'user',
           name: '',
-          is_user: false,
+          is_user: true,
           mes: content,
-          is_system: true,
+          is_system: false,
         } as unknown as T);
       }
     }

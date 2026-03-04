@@ -96,13 +96,24 @@ function getPreviousRelationshipValue(currentMessageId: number): number {
   return 50;
 }
 
-function getRelationshipLabel(value: number | undefined): string {
-  const val = value ?? 50;
-  if (val <= 20) return 'Stranger';
-  if (val <= 40) return 'Acquaintance';
-  if (val <= 60) return 'Friend';
-  if (val <= 80) return 'Close Friend';
-  return 'Intimate';
+function parseTrackerHtmlToText(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const rows = doc.querySelectorAll('tr');
+  const lines: string[] = [];
+
+  rows.forEach((row) => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length === 2) {
+      const label = cells[0].textContent?.trim().replace(':', '');
+      const value = cells[1].textContent?.trim();
+      if (label && value) {
+        lines.push(`${label}: ${value}`);
+      }
+    }
+  });
+
+  return lines.join('\n');
 }
 
 function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[], settings: ExtensionSettings): T[] {
@@ -127,9 +138,20 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
       if (foundMessage) {
         const extra =
           'source' in foundMessage ? (foundMessage as Message).source?.extra : (foundMessage as ChatMessage).extra;
+        const trackerData = extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+        const trackerHtmlSchema = extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_HTML_KEY];
         const relationshipValue = extra?.[EXTENSION_KEY]?.['relationshipValue'];
-        const relationshipLabel = getRelationshipLabel(relationshipValue);
-        const content = `Status:\n\`\`\`json\n${JSON.stringify(extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}', null, 2)}\n\`\`\`\n\nRelationship: ${relationshipLabel} (${relationshipValue ?? 50}/100)`;
+
+        if (!trackerData || !trackerHtmlSchema) continue;
+
+        const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true, strict: true });
+        const contextData = {
+          data: trackerData,
+          relationshipValue: relationshipValue !== undefined ? relationshipValue : 50,
+        };
+        const renderedHtml = template(contextData);
+        const parsedText = parseTrackerHtmlToText(renderedHtml);
+        const content = `Status:\n${parsedText}`;
         copyMessages.splice(foundIndex, 0, {
           content,
           role: 'system',

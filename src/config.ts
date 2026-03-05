@@ -181,26 +181,26 @@ export const DEFAULT_SCHEMA_VALUE: object = {
   "properties": {
     "location": {
       "type": "string",
-      "description": "Specific scene location with increasing specificity"
+      "description": "Specific scene location with increasing specificity - Must be updated from context"
     },
     "time": {
       "type": "string",
-      "description": "Part of the day and UPDATED time (Format: HH:MM)"
+      "description": "Part of the day and time (Format: HH:MM) - Must be updated from context"
     },
     "weather": {
       "type": "string",
-      "description": "Current weather in 1-2 words"
+      "description": "Current weather in 1-2 words - Must be updated from context"
     },
     "character": {
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
-          "description": "Full name of the character"
+          "description": "Full name of the character - DO NOT change"
         },
         "attire": {
           "type": "string",
-          "description": "Character's complete attire or 'Nude'"
+          "description": "Character's complete attire"
         },
         "inventoryItems": {
           "type": "array",
@@ -208,13 +208,13 @@ export const DEFAULT_SCHEMA_VALUE: object = {
             "type": "string",
             "description": "Item name in 1-2 words"
           },
-          "description": "List of items in character's inventory or 'Empty'"
+          "description": "List of items in character's inventory"
         },
         "moveset": {
           "type": "array",
           "items": {
             "type": "string",
-            "description": "List of all moves the character knows (KEEP UPDATED)"
+            "description": "List of all moves the character knows - Must be updated from context"
           },
           "description": "List of character's moves"
         },
@@ -225,7 +225,7 @@ export const DEFAULT_SCHEMA_VALUE: object = {
         },
         "mood": {
           "type": "string",
-          "description": "Character's UPDATED mood based on her last response"
+          "description": "Character's mood based on her last response - Must be updated from context"
         }
       },
       "required": [
@@ -377,6 +377,17 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
                     {{rangeText relationshipValue 41 60 'Friend' ''}}
                     {{rangeText relationshipValue 61 80 'Close Friend' ''}}
                     {{rangeText relationshipValue 81 100 'Intimate' ''}}
+                    ({{relationshipValue}}/100)
+                </td>
+            </tr>
+            <tr>
+                <td>Behavior:</td>
+                <td>
+                    {{rangeText relationshipValue 0 20 'Defiant' ''}}
+                    {{rangeText relationshipValue 21 40 'Reserved' ''}}
+                    {{rangeText relationshipValue 41 60 'Accepting' ''}}
+                    {{rangeText relationshipValue 61 80 'Compliant' ''}}
+                    {{rangeText relationshipValue 81 100 'Submissive' ''}}
                     ({{relationshipValue}}/100)
                 </td>
             </tr>

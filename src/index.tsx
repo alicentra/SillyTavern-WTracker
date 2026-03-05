@@ -57,6 +57,7 @@ function renderTracker(messageId: number) {
   const trackerData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
   const trackerHtmlSchema = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY];
   const relationshipValue = message.extra[EXTENSION_KEY]['relationshipValue'];
+  const behaviorValue = message.extra[EXTENSION_KEY]['behaviorValue'];
   if (!trackerData || !trackerHtmlSchema) return;
 
   if (!messageBlock) return;
@@ -64,7 +65,8 @@ function renderTracker(messageId: number) {
   const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true, strict: true });
   const contextData = {
     data: trackerData,
-    relationshipValue: relationshipValue !== undefined ? relationshipValue : 50,
+    relationshipValue: relationshipValue !== undefined ? relationshipValue : 0,
+    behaviorValue: behaviorValue !== undefined ? behaviorValue : (relationshipValue !== undefined ? relationshipValue : 0),
   };
   const renderedHtml = template(contextData);
   const container = document.createElement('div');
@@ -92,8 +94,8 @@ function getPreviousRelationshipValue(currentMessageId: number): number {
       return message.extra[EXTENSION_KEY]['relationshipValue'];
     }
   }
-  // Default to 50 if no previous value found
-  return 50;
+  // Default to 0 if no previous value found
+  return 0;
 }
 
 function parseTrackerHtmlToText(html: string): string {
@@ -141,13 +143,16 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
         const trackerData = extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
         const trackerHtmlSchema = extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_HTML_KEY];
         const relationshipValue = extra?.[EXTENSION_KEY]?.['relationshipValue'];
+        const behaviorValue = extra?.[EXTENSION_KEY]?.['behaviorValue'];
 
         if (!trackerData || !trackerHtmlSchema) continue;
 
         const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true, strict: true });
         const contextData = {
           data: trackerData,
-          relationshipValue: relationshipValue !== undefined ? relationshipValue : 50,
+          relationshipValue: relationshipValue !== undefined ? relationshipValue : 0,
+          behaviorValue:
+            behaviorValue !== undefined ? behaviorValue : (relationshipValue !== undefined ? relationshipValue : 0),
         };
         const renderedHtml = template(contextData);
         const parsedText = parseTrackerHtmlToText(renderedHtml);
@@ -373,6 +378,8 @@ async function generateTracker(id: number) {
     message.extra = message.extra || {};
     message.extra[EXTENSION_KEY] = message.extra[EXTENSION_KEY] || {};
     message.extra[EXTENSION_KEY]['relationshipValue'] = relationshipValue;
+    // Behavior currently mirrors relationship-based progression.
+    message.extra[EXTENSION_KEY]['behaviorValue'] = relationshipValue;
 
     // Tentatively update message and try to render
     message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = response;

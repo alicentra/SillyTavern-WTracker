@@ -218,7 +218,7 @@ export const DEFAULT_SCHEMA_VALUE: object = {
           },
           "description": "List of character's moves"
         },
-        "approval": {
+        "reaction": {
           "type": "string",
           "description": "How the character feels about the user's last action (Positive, Neutral, or Negative)",
           "enum": ["Positive", "Neutral", "Negative"]
@@ -233,7 +233,7 @@ export const DEFAULT_SCHEMA_VALUE: object = {
         "attire",
         "inventoryItems",
         "moveset",
-        "approval",
+        "reaction",
         "mood"
       ]
     }
@@ -362,8 +362,8 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
                 </td>
             </tr>
             <tr>
-                <td>Approval:</td>
-                <td>{{data.character.approval}}</td>
+                <td>Reaction:</td>
+                <td>{{data.character.reaction}}</td>
             </tr>
             <tr>
                 <td>Mood:</td>
@@ -380,19 +380,27 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
                     ({{relationshipValue}}/100)
                 </td>
             </tr>
-            <tr>
-                <td>Behavior:</td>
-                <td>
-                    {{rangeText relationshipValue 0 20 'Defiant' ''}}
-                    {{rangeText relationshipValue 21 40 'Reserved' ''}}
-                    {{rangeText relationshipValue 41 60 'Accepting' ''}}
-                    {{rangeText relationshipValue 61 80 'Compliant' ''}}
-                    {{rangeText relationshipValue 81 100 'Submissive' ''}}
-                    ({{relationshipValue}}/100)
-                </td>
-            </tr>
         </tbody>
     </table>
+    <!-- Collapsible Behavior Section -->
+    <details>
+        <summary><span>Behavior Details</span></summary>
+        <table>
+            <tbody>
+                <tr>
+                    <td>Behavior:</td>
+                    <td>
+                        {{rangeText relationshipValue 0 20 'Defiant' ''}}
+                        {{rangeText relationshipValue 21 40 'Reserved' ''}}
+                        {{rangeText relationshipValue 41 60 'Accepting' ''}}
+                        {{rangeText relationshipValue 61 80 'Compliant' ''}}
+                        {{rangeText relationshipValue 81 100 'Submissive' ''}}
+                        ({{relationshipValue}}/100)
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </details>
 </div>
 <hr>`;
 

@@ -109,7 +109,7 @@ function parseTrackerHtmlToText(html: string): string {
     if (cells.length === 2) {
       const label = cells[0].textContent?.trim().replace(':', '');
       const value = cells[1].textContent?.trim().replace(/\s+/g, ' ');
-      if (label && value) {
+      if (label && value && label !== 'Reaction') {
         lines.push(`${label}: ${value}`);
       }
     }
@@ -156,7 +156,7 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
         };
         const renderedHtml = template(contextData);
         const parsedText = parseTrackerHtmlToText(renderedHtml);
-        const content = `**STATUS BEGIN**\n${parsedText}\n**STATUS END**`;
+        const content = `**PREVIOUS STATUS BEGIN**\n${parsedText}\n**PREVIOUS STATUS END**`;
         copyMessages.splice(foundIndex, 0, {
           content,
           role: 'user',
@@ -363,13 +363,13 @@ async function generateTracker(id: number) {
 
     if (!response || Object.keys(response as any).length === 0) throw new Error('Empty response from WTracker.');
 
-    // Extract approval value and calculate relationshipValue
-    const approval = (response as any).character?.approval || 'Neutral';
+    // Extract reaction value and calculate relationshipValue
+    const reaction = (response as any).character?.reaction || 'Neutral';
     let relationshipValue = getPreviousRelationshipValue(id);
 
-    if (approval === 'Positive') {
+    if (reaction === 'Positive') {
       relationshipValue = Math.min(relationshipValue + 1, 100);
-    } else if (approval === 'Negative') {
+    } else if (reaction === 'Negative') {
       relationshipValue = Math.max(relationshipValue - 1, 0);
     }
     // Neutral: no change

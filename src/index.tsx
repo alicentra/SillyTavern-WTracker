@@ -17,12 +17,30 @@ const CHAT_METADATA_SCHEMA_PRESET_KEY = 'schemaKey';
 const CHAT_METADATA_WTRACKER_IGNORE_KEY = 'wtracker_ignore';
 const CHAT_MESSAGE_SCHEMA_VALUE_KEY = 'value';
 const CHAT_MESSAGE_SCHEMA_HTML_KEY = 'html';
+const CHAT_MESSAGE_CHARACTER_TRACKERS_KEY = 'characterTrackers';
+const CHAT_MESSAGE_CHARACTER_KEY = 'characterKey';
+const CHAT_MESSAGE_CHARACTER_NAME_KEY = 'characterName';
+const CHAT_MESSAGE_CHARACTER_AVATAR_KEY = 'characterAvatar';
 
 const globalContext = SillyTavern.getContext();
 const generator = new Generator();
 const pendingRequests = new Map<number, string>();
 const incomingTypes = [AutoModeOptions.RESPONSES, AutoModeOptions.BOTH];
 const outgoingTypes = [AutoModeOptions.INPUT, AutoModeOptions.BOTH];
+
+type WTrackerEntry = {
+  [CHAT_MESSAGE_SCHEMA_VALUE_KEY]?: unknown;
+  [CHAT_MESSAGE_SCHEMA_HTML_KEY]?: string;
+  relationshipValue?: number;
+  behaviorValue?: number;
+  [CHAT_MESSAGE_CHARACTER_KEY]?: string;
+  [CHAT_MESSAGE_CHARACTER_NAME_KEY]?: string;
+  [CHAT_MESSAGE_CHARACTER_AVATAR_KEY]?: string;
+};
+
+type WTrackerStorage = WTrackerEntry & {
+  [CHAT_MESSAGE_CHARACTER_TRACKERS_KEY]?: Record<string, WTrackerEntry>;
+};
 
 // --- Handlebars Helper ---
 if (!Handlebars.helpers['join']) {
@@ -53,12 +71,13 @@ function renderTracker(messageId: number) {
   const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
   messageBlock?.querySelector('.mes_wtracker')?.remove();
 
-  if (!message?.extra?.[EXTENSION_KEY]) return;
+  const trackerEntry = getTrackerEntry(message);
+  if (!trackerEntry) return;
 
-  const trackerData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
-  const trackerHtmlSchema = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY];
-  const relationshipValue = message.extra[EXTENSION_KEY]['relationshipValue'];
-  const behaviorValue = message.extra[EXTENSION_KEY]['behaviorValue'];
+  const trackerData = trackerEntry[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+  const trackerHtmlSchema = trackerEntry[CHAT_MESSAGE_SCHEMA_HTML_KEY];
+  const relationshipValue = trackerEntry.relationshipValue;
+  const behaviorValue = trackerEntry.behaviorValue;
   if (!trackerData || !trackerHtmlSchema) return;
 
   if (!messageBlock) return;
@@ -67,7 +86,8 @@ function renderTracker(messageId: number) {
   const contextData = {
     data: trackerData,
     relationshipValue: relationshipValue !== undefined ? relationshipValue : 0,
-    behaviorValue: behaviorValue !== undefined ? behaviorValue : (relationshipValue !== undefined ? relationshipValue : 0),
+    behaviorValue:
+      behaviorValue !== undefined ? behaviorValue : relationshipValue !== undefined ? relationshipValue : 0,
   };
   const renderedHtml = template(contextData);
   const container = document.createElement('div');
@@ -87,12 +107,19 @@ function renderTracker(messageId: number) {
   messageBlock.querySelector('.mes_text')?.before(container);
 }
 
-function getPreviousRelationshipValue(currentMessageId: number): number {
+function renderAllTrackers() {
+  globalContext.chat.forEach((_message, index) => renderTracker(index));
+}
+
+function getPreviousRelationshipValue(currentMessageId: number, characterKey?: string): number {
   // Search backwards from the current message to find the last tracker with a relationshipValue
   for (let i = currentMessageId - 1; i >= 0; i--) {
     const message = globalContext.chat[i];
-    if (message?.extra?.[EXTENSION_KEY]?.['relationshipValue'] !== undefined) {
-      return message.extra[EXTENSION_KEY]['relationshipValue'];
+    const trackerEntry = getTrackerEntry(message, {
+      characterKey,
+    });
+    if (trackerEntry?.relationshipValue !== undefined) {
+      return trackerEntry.relationshipValue;
     }
   }
   // Default to 0 if no previous value found
@@ -150,8 +177,176 @@ function normalizeAvatarRef(value?: string): string | undefined {
   return normalized.trim() || undefined;
 }
 
+function getMessageSource(message: Message | ChatMessage): ChatMessage {
+  return ('source' in message && message.source ? message.source : message) as ChatMessage;
+}
+
+function getMessageAvatar(message?: ChatMessage): string | undefined {
+  if (!message) return undefined;
+  return normalizeAvatarRef(
+    (message as any).original_avatar ?? (message as any).force_avatar ?? (message as any).avatar,
+  );
+}
+
+function getGroupMessageCharacterKey(message?: ChatMessage): string | undefined {
+  if (!selected_group || !message || message.is_user) return undefined;
+
+  const avatar = getMessageAvatar(message);
+  if (avatar) return `avatar:${avatar}`;
+
+  const name = message.name?.trim();
+  if (name && name !== 'System') return `name:${name}`;
+
+  return undefined;
+}
+
+function hasTrackerPayload(entry?: WTrackerEntry): boolean {
+  return !!entry?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] && !!entry?.[CHAT_MESSAGE_SCHEMA_HTML_KEY];
+}
+
+function getTrackerCharacterNames(entry?: WTrackerEntry): string[] {
+  const data = entry?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] as any;
+  if (!data || typeof data !== 'object') return [];
+
+  const names = new Set<string>();
+  const addName = (name?: unknown) => {
+    if (typeof name === 'string' && name.trim()) {
+      names.add(name.trim().toLowerCase());
+    }
+  };
+
+  addName(data.character?.name);
+  addName(data.name);
+
+  if (Array.isArray(data.characters)) {
+    data.characters.forEach((character: any) => addName(character?.name));
+  } else if (data.characters && typeof data.characters === 'object') {
+    Object.keys(data.characters).forEach(addName);
+  }
+
+  return Array.from(names);
+}
+
+function legacyTrackerMatchesMessage(entry: WTrackerEntry, message?: ChatMessage): boolean {
+  const messageName = message?.name?.trim().toLowerCase();
+  if (!messageName) return true;
+
+  const trackerNames = getTrackerCharacterNames(entry);
+  return trackerNames.length === 0 || trackerNames.includes(messageName);
+}
+
+function getWTrackerStorage(message?: ChatMessage): WTrackerStorage | undefined {
+  return message?.extra?.[EXTENSION_KEY] as WTrackerStorage | undefined;
+}
+
+function getTrackerEntry(
+  message?: ChatMessage,
+  { characterKey, allowLegacyFallback = true }: { characterKey?: string; allowLegacyFallback?: boolean } = {},
+): WTrackerEntry | undefined {
+  const storage = getWTrackerStorage(message);
+  if (!storage) return undefined;
+
+  const messageCharacterKey = getGroupMessageCharacterKey(message);
+  const resolvedCharacterKey = characterKey ?? messageCharacterKey;
+
+  if (resolvedCharacterKey) {
+    const scopedEntry = storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY]?.[resolvedCharacterKey];
+    if (hasTrackerPayload(scopedEntry)) return scopedEntry;
+
+    if (
+      allowLegacyFallback &&
+      hasTrackerPayload(storage) &&
+      ((!storage[CHAT_MESSAGE_CHARACTER_KEY] &&
+        messageCharacterKey === resolvedCharacterKey &&
+        legacyTrackerMatchesMessage(storage, message)) ||
+        storage[CHAT_MESSAGE_CHARACTER_KEY] === resolvedCharacterKey)
+    ) {
+      return storage;
+    }
+
+    return undefined;
+  }
+
+  return hasTrackerPayload(storage) ? storage : undefined;
+}
+
+function ensureTrackerEntry(message: ChatMessage): WTrackerEntry {
+  message.extra = message.extra || {};
+  const storage = (message.extra[EXTENSION_KEY] = (message.extra[EXTENSION_KEY] || {}) as WTrackerStorage);
+  const characterKey = getGroupMessageCharacterKey(message);
+
+  if (!characterKey) return storage;
+
+  storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY] = storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY] || {};
+  const entry = (storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY][characterKey] =
+    storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY][characterKey] || {});
+
+  entry[CHAT_MESSAGE_CHARACTER_KEY] = characterKey;
+  entry[CHAT_MESSAGE_CHARACTER_NAME_KEY] = message.name;
+  entry[CHAT_MESSAGE_CHARACTER_AVATAR_KEY] = getMessageAvatar(message);
+
+  delete storage[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+  delete storage[CHAT_MESSAGE_SCHEMA_HTML_KEY];
+  delete storage.relationshipValue;
+  delete storage.behaviorValue;
+  delete storage[CHAT_MESSAGE_CHARACTER_KEY];
+  delete storage[CHAT_MESSAGE_CHARACTER_NAME_KEY];
+  delete storage[CHAT_MESSAGE_CHARACTER_AVATAR_KEY];
+
+  return entry;
+}
+
+function deleteTrackerEntry(message?: ChatMessage): boolean {
+  const storage = getWTrackerStorage(message);
+  if (!message?.extra || !storage) return false;
+
+  const characterKey = getGroupMessageCharacterKey(message);
+  if (characterKey && storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY]?.[characterKey]) {
+    delete storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY][characterKey];
+  } else if (hasTrackerPayload(storage)) {
+    delete storage[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+    delete storage[CHAT_MESSAGE_SCHEMA_HTML_KEY];
+    delete storage.relationshipValue;
+    delete storage.behaviorValue;
+    delete storage[CHAT_MESSAGE_CHARACTER_KEY];
+    delete storage[CHAT_MESSAGE_CHARACTER_NAME_KEY];
+    delete storage[CHAT_MESSAGE_CHARACTER_AVATAR_KEY];
+  } else {
+    return false;
+  }
+
+  if (
+    storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY] &&
+    Object.keys(storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY]).length === 0
+  ) {
+    delete storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY];
+  }
+
+  if (!hasTrackerPayload(storage) && !storage[CHAT_MESSAGE_CHARACTER_TRACKERS_KEY]) {
+    delete message.extra[EXTENSION_KEY];
+  }
+
+  return true;
+}
+
+function getCharacterIdForMessage(message: ChatMessage): number | undefined {
+  const avatar = getMessageAvatar(message);
+  let characterId = -1;
+
+  if (avatar) {
+    characterId = characters.findIndex((char: any) => normalizeAvatarRef(char.avatar) === avatar);
+  }
+
+  if (characterId === -1 && message.name) {
+    characterId = characters.findIndex((char: any) => char.name === message.name);
+  }
+
+  return characterId !== -1 ? characterId : undefined;
+}
+
 function getIgnoredAvatarSet(): Set<string> {
-  const ignoreList: string[] = (SillyTavern.getContext().chatMetadata as any)?.[CHAT_METADATA_WTRACKER_IGNORE_KEY] ?? [];
+  const ignoreList: string[] =
+    (SillyTavern.getContext().chatMetadata as any)?.[CHAT_METADATA_WTRACKER_IGNORE_KEY] ?? [];
   return new Set(ignoreList.map((item) => normalizeAvatarRef(item)).filter((item): item is string => !!item));
 }
 
@@ -180,7 +375,11 @@ function ensureWTrackerButtonForMember(member: JQuery): void {
   );
 }
 
-function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[], settings: ExtensionSettings): T[] {
+function includeWTrackerMessages<T extends Message | ChatMessage>(
+  messages: T[],
+  settings: ExtensionSettings,
+  characterKey?: string,
+): T[] {
   let copyMessages = structuredClone(messages);
   if (settings.includeLastXWTrackerMessages > 0) {
     for (let i = 0; i < settings.includeLastXWTrackerMessages; i++) {
@@ -189,9 +388,12 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
       for (let j = copyMessages.length - 2; j >= 0; j--) {
         // -2 to skip current message
         const message = copyMessages[j];
-        const extra = 'source' in message ? (message as Message).source?.extra : (message as ChatMessage).extra;
+        const sourceMessage = getMessageSource(message);
+        const trackerEntry = getTrackerEntry(sourceMessage, {
+          characterKey,
+        });
         // @ts-ignore
-        if (!message.wTrackerFound && extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]) {
+        if (!message.wTrackerFound && trackerEntry?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]) {
           // @ts-ignore
           message.wTrackerFound = true;
           foundMessage = message;
@@ -200,12 +402,14 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
         }
       }
       if (foundMessage) {
-        const extra =
-          'source' in foundMessage ? (foundMessage as Message).source?.extra : (foundMessage as ChatMessage).extra;
-        const trackerData = extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
-        const trackerHtmlSchema = extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_HTML_KEY];
-        const relationshipValue = extra?.[EXTENSION_KEY]?.['relationshipValue'];
-        const behaviorValue = extra?.[EXTENSION_KEY]?.['behaviorValue'];
+        const sourceMessage = getMessageSource(foundMessage);
+        const trackerEntry = getTrackerEntry(sourceMessage, {
+          characterKey,
+        });
+        const trackerData = trackerEntry?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+        const trackerHtmlSchema = trackerEntry?.[CHAT_MESSAGE_SCHEMA_HTML_KEY];
+        const relationshipValue = trackerEntry?.relationshipValue;
+        const behaviorValue = trackerEntry?.behaviorValue;
 
         if (!trackerData || !trackerHtmlSchema) continue;
 
@@ -214,7 +418,7 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
           data: trackerData,
           relationshipValue: relationshipValue !== undefined ? relationshipValue : 0,
           behaviorValue:
-            behaviorValue !== undefined ? behaviorValue : (relationshipValue !== undefined ? relationshipValue : 0),
+            behaviorValue !== undefined ? behaviorValue : relationshipValue !== undefined ? relationshipValue : 0,
         };
         const renderedHtml = template(contextData);
         const parsedText = parseTrackerHtmlToText(renderedHtml);
@@ -235,7 +439,7 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
 
 async function deleteTracker(messageId: number) {
   const message = globalContext.chat[messageId];
-  if (!message?.extra?.[EXTENSION_KEY]) return;
+  if (!getTrackerEntry(message)) return;
 
   const confirm = await globalContext.Popup.show.confirm(
     'Delete Tracker',
@@ -243,7 +447,7 @@ async function deleteTracker(messageId: number) {
   );
 
   if (confirm) {
-    delete message.extra[EXTENSION_KEY];
+    deleteTrackerEntry(message);
     await globalContext.saveChat();
     renderTracker(messageId); // This will remove the rendered tracker
     st_echo('success', 'Tracker data deleted.');
@@ -252,9 +456,10 @@ async function deleteTracker(messageId: number) {
 
 async function editTracker(messageId: number) {
   const message = globalContext.chat[messageId];
-  if (!message?.extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]) return;
+  const trackerEntry = getTrackerEntry(message);
+  if (!trackerEntry?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]) return;
 
-  const currentData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+  const currentData = trackerEntry[CHAT_MESSAGE_SCHEMA_VALUE_KEY];
 
   const popupContent = `
         <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -271,8 +476,7 @@ async function editTracker(messageId: number) {
         if (textarea) {
           try {
             const newData = JSON.parse(textarea.value);
-            // @ts-ignore
-            message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = newData;
+            trackerEntry[CHAT_MESSAGE_SCHEMA_VALUE_KEY] = newData;
             await globalContext.saveChat();
             let detailsState: boolean[] = [];
             const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
@@ -364,10 +568,9 @@ async function generateTracker(id: number) {
 
   // Skip generation if this character is excluded from WTracking
   const ignoredAvatars = getIgnoredAvatarSet();
-  const messageAvatar = normalizeAvatarRef(
-    (message as any).original_avatar ?? (message as any).force_avatar ?? (message as any).avatar,
-  );
+  const messageAvatar = getMessageAvatar(message);
   if (messageAvatar && ignoredAvatars.has(messageAvatar)) return;
+  const characterKey = getGroupMessageCharacterKey(message);
 
   if (pendingRequests.has(id)) {
     const requestId = pendingRequests.get(id)!;
@@ -391,8 +594,7 @@ async function generateTracker(id: number) {
 
   const profile = extensionSettings.connectionManager?.profiles?.find((p) => p.id === settings.profileId);
   const apiMap = profile?.api ? CONNECT_API_MAP[profile.api] : null;
-  let characterId = characters.findIndex((char: any) => char.avatar === message.original_avatar);
-  characterId = characterId !== -1 ? characterId : undefined;
+  const characterId = getCharacterIdForMessage(message);
 
   const messageBlock = document.querySelector(`.mes[mesid="${id}"]`);
   const mainButton = messageBlock?.querySelector('.mes_wtracker_button');
@@ -420,7 +622,7 @@ async function generateTracker(id: number) {
       syspromptName: profile?.sysprompt,
       includeNames: !!selected_group,
     });
-    let messages = includeWTrackerMessages(promptResult.result, settings);
+    let messages = includeWTrackerMessages(promptResult.result, settings, characterKey);
     let response: ExtractedData['content'];
 
     const makeRequest = (requestMessages: Message[], overideParams?: any): Promise<ExtractedData | undefined> => {
@@ -483,7 +685,7 @@ async function generateTracker(id: number) {
 
     // Extract reaction value and calculate relationshipValue
     const reaction = (response as any).character?.reaction || 'Neutral';
-    let relationshipValue = getPreviousRelationshipValue(id);
+    let relationshipValue = getPreviousRelationshipValue(id, characterKey);
 
     if (reaction === 'Positive') {
       relationshipValue = Math.min(relationshipValue + 1, 100);
@@ -493,15 +695,14 @@ async function generateTracker(id: number) {
     // Neutral: no change
 
     // Store relationshipValue separately so LLM cannot modify it
-    message.extra = message.extra || {};
-    message.extra[EXTENSION_KEY] = message.extra[EXTENSION_KEY] || {};
-    message.extra[EXTENSION_KEY]['relationshipValue'] = relationshipValue;
+    const trackerEntry = ensureTrackerEntry(message);
+    trackerEntry.relationshipValue = relationshipValue;
     // Behavior currently mirrors relationship-based progression.
-    message.extra[EXTENSION_KEY]['behaviorValue'] = relationshipValue;
+    trackerEntry.behaviorValue = relationshipValue;
 
     // Tentatively update message and try to render
-    message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = response;
-    message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY] = chatHtmlValue;
+    trackerEntry[CHAT_MESSAGE_SCHEMA_VALUE_KEY] = response;
+    trackerEntry[CHAT_MESSAGE_SCHEMA_HTML_KEY] = chatHtmlValue;
 
     try {
       renderTracker(id);
@@ -523,7 +724,7 @@ async function generateTracker(id: number) {
       await saveChat();
     } catch (renderError) {
       // If render fails, remove the tracker data we just added
-      delete message.extra[EXTENSION_KEY];
+      deleteTrackerEntry(message);
       // Re-render to clear the failed attempt from the DOM
       renderTracker(id);
       // Let the outer catch block show the error to the user
@@ -545,7 +746,9 @@ async function generateTracker(id: number) {
 async function initializeGlobalUI() {
   // Add toggle button to group member list entries
   const groupMemberTemplateIcons = $('.group_member_icon');
-  const ignoreWTrackerButton = $(`<div title="Toggle status tracking" class="ignore_wtracker_toggle fa-solid fa-file-pen right_menu_button fa-lg interactable" tabindex="0"></div>`);
+  const ignoreWTrackerButton = $(
+    `<div title="Toggle status tracking" class="ignore_wtracker_toggle fa-solid fa-file-pen right_menu_button fa-lg interactable" tabindex="0"></div>`,
+  );
   groupMemberTemplateIcons.before(ignoreWTrackerButton);
 
   $('#rm_group_members').on('click', '.ignore_wtracker_toggle', toggleWTrackerForMember);
@@ -640,8 +843,7 @@ async function initializeGlobalUI() {
       } catch (error) {
         console.error(`Error rendering WTracker on message ${i}, removing data:`, error);
         st_echo('error', 'A WTracker template failed to render. Removing tracker from the message.');
-        if (message?.extra?.[EXTENSION_KEY]) {
-          delete message.extra[EXTENSION_KEY];
+        if (deleteTrackerEntry(message)) {
           chatModified = true;
         }
       }
@@ -649,6 +851,14 @@ async function initializeGlobalUI() {
     if (chatModified) {
       saveChat();
     }
+  });
+  globalContext.eventSource.on(EventNames.MESSAGE_SWIPED, (messageId?: number) => {
+    if (typeof messageId === 'number') {
+      renderTracker(messageId);
+      return;
+    }
+
+    renderAllTrackers();
   });
 
   // Register the global generation interceptor

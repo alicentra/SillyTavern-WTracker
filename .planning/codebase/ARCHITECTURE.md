@@ -7,8 +7,8 @@
 
 ```text
 +-------------------------------------------------------------------+
-| SillyTavern extension host                                         |
-| `manifest.json` loads `dist/index.js` and `dist/style.css`          |
+| SillyTavern extension host                                        |
+| `manifest.json` loads `dist/index.js` and `dist/style.css`        |
 +----------------------+----------------------+---------------------+
 | Entry coordinator    | Settings surface     | Runtime assets      |
 | `src/index.tsx`      | `src/components/`    | `templates/`,       |
@@ -17,16 +17,16 @@
            |                      |                      |
            v                      v                      v
 +-------------------------------------------------------------------+
-| Extension state and support modules                                |
-| `src/config.ts`, `src/parser.ts`, `src/schema-to-example.ts`,       |
-| `src/hooks/useForceUpdate.ts`                                       |
+| Extension state and support modules                               |
+| `src/config.ts`, `src/parser.ts`, `src/schema-to-example.ts`,     |
+| `src/hooks/useForceUpdate.ts`                                     |
 +-------------------------------------------------------------------+
            |
            v
 +-------------------------------------------------------------------+
-| SillyTavern APIs and persisted data                                |
-| `SillyTavern.getContext()`, `sillytavern-utils-lib`,                |
-| chat `extra.WTracker`, chat metadata, extension settings            |
+| SillyTavern APIs and persisted data                               |
+| `SillyTavern.getContext()`, `sillytavern-utils-lib`,              |
+| chat `extra.WTracker`, chat metadata, extension settings          |
 +-------------------------------------------------------------------+
 ```
 

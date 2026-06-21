@@ -25,8 +25,11 @@ const CHAT_MESSAGE_CHARACTER_AVATAR_KEY = 'characterAvatar';
 const globalContext = SillyTavern.getContext();
 const generator = new Generator();
 const pendingRequests = new Map<number, string>();
+const queuedAutoGenerations = new Set<number>();
 const incomingTypes = [AutoModeOptions.RESPONSES, AutoModeOptions.BOTH];
 const outgoingTypes = [AutoModeOptions.INPUT, AutoModeOptions.BOTH];
+let isProcessingAutoGenerationQueue = false;
+let autoGenerationQueuePromise: Promise<void> | null = null;
 
 type WTrackerEntry = {
   [CHAT_MESSAGE_SCHEMA_VALUE_KEY]?: unknown;
@@ -41,6 +44,13 @@ type WTrackerEntry = {
 type WTrackerStorage = WTrackerEntry & {
   [CHAT_MESSAGE_CHARACTER_TRACKERS_KEY]?: Record<string, WTrackerEntry>;
 };
+
+function substitutePromptMacros(messages: Message[]): Message[] {
+  return messages.map((message) => ({
+    ...message,
+    content: typeof message.content === 'string' ? globalContext.substituteParams(message.content) : message.content,
+  }));
+}
 
 // --- Handlebars Helper ---
 if (!Handlebars.helpers['join']) {
@@ -109,6 +119,38 @@ function renderTracker(messageId: number) {
 
 function renderAllTrackers() {
   globalContext.chat.forEach((_message, index) => renderTracker(index));
+}
+
+function queueAutoGenerateTracker(messageId: number): Promise<void> {
+  queuedAutoGenerations.add(messageId);
+  return processAutoGenerationQueue();
+}
+
+async function processAutoGenerationQueue(): Promise<void> {
+  if (autoGenerationQueuePromise) return autoGenerationQueuePromise;
+
+  autoGenerationQueuePromise = drainAutoGenerationQueue();
+  try {
+    await autoGenerationQueuePromise;
+  } finally {
+    autoGenerationQueuePromise = null;
+  }
+}
+
+async function drainAutoGenerationQueue(): Promise<void> {
+  if (isProcessingAutoGenerationQueue) return;
+
+  isProcessingAutoGenerationQueue = true;
+  try {
+    while (queuedAutoGenerations.size > 0) {
+      const messageId = queuedAutoGenerations.values().next().value as number;
+      queuedAutoGenerations.delete(messageId);
+
+      await generateTracker(messageId);
+    }
+  } finally {
+    isProcessingAutoGenerationQueue = false;
+  }
 }
 
 function getPreviousRelationshipValue(currentMessageId: number, characterKey?: string): number {
@@ -620,9 +662,9 @@ async function generateTracker(id: number) {
       contextName: profile?.context,
       instructName: profile?.instruct,
       syspromptName: profile?.sysprompt,
-      includeNames: !!selected_group,
+      includeNames: true,
     });
-    let messages = includeWTrackerMessages(promptResult.result, settings, characterKey);
+    let messages = substitutePromptMacros(includeWTrackerMessages(promptResult.result, settings, characterKey));
     let response: ExtractedData['content'];
 
     const makeRequest = (requestMessages: Message[], overideParams?: any): Promise<ExtractedData | undefined> => {
@@ -824,14 +866,22 @@ async function initializeGlobalUI() {
   });
 
   // Set up event listeners for auto-mode and chat changes
-  const settings = settingsManager.getSettings();
-  globalContext.eventSource.on(
+  const eventSource = globalContext.eventSource as any;
+  eventSource.makeFirst(
     EventNames.CHARACTER_MESSAGE_RENDERED,
-    (messageId: number) => incomingTypes.includes(settings.autoMode) && generateTracker(messageId),
+    async (messageId: number) => {
+      if (incomingTypes.includes(settingsManager.getSettings().autoMode)) {
+        await queueAutoGenerateTracker(messageId);
+      }
+    },
   );
-  globalContext.eventSource.on(
+  eventSource.makeFirst(
     EventNames.USER_MESSAGE_RENDERED,
-    (messageId: number) => outgoingTypes.includes(settings.autoMode) && generateTracker(messageId),
+    async (messageId: number) => {
+      if (outgoingTypes.includes(settingsManager.getSettings().autoMode)) {
+        await queueAutoGenerateTracker(messageId);
+      }
+    },
   );
   globalContext.eventSource.on(EventNames.CHAT_CHANGED, () => {
     updateAllWTrackerMemberButtons();

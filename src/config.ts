@@ -6,6 +6,8 @@ export enum PromptEngineeringMode {
   XML = 'xml',
 }
 
+export type PromptSenderRole = 'user' | 'assistant';
+
 export interface Schema {
   name: string;
   value: object;
@@ -24,6 +26,7 @@ export interface ExtensionSettings {
   includeLastXMessages: number; // 0 means all messages
   includeLastXWTrackerMessages: number; // 0 means none
   promptEngineeringMode: PromptEngineeringMode;
+  promptRole: PromptSenderRole;
   promptJson: string;
   promptXml: string;
 }
@@ -426,6 +429,7 @@ export const defaultSettings: ExtensionSettings = {
   includeLastXMessages: 0,
   includeLastXWTrackerMessages: 1,
   promptEngineeringMode: PromptEngineeringMode.NATIVE,
+  promptRole: 'user',
   promptJson: DEFAULT_PROMPT_JSON,
   promptXml: DEFAULT_PROMPT_XML,
 };

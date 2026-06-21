@@ -701,8 +701,9 @@ async function generateTracker(id: number) {
       });
     };
 
+    const promptRole = settings.promptRole ?? 'user';
     if (settings.promptEngineeringMode === PromptEngineeringMode.NATIVE) {
-      messages.push({ content: settings.prompt, role: 'user' });
+      messages.push({ content: settings.prompt, role: promptRole });
       const result = await makeRequest(messages, {
         json_schema: { name: 'SceneTracker', strict: true, value: chatJsonValue },
       });
@@ -716,7 +717,7 @@ async function generateTracker(id: number) {
         schema: JSON.stringify(chatJsonValue, null, 2),
         example_response: exampleResponse,
       });
-      messages.push({ content: finalPrompt, role: 'user' });
+      messages.push({ content: finalPrompt, role: promptRole });
       const rest = await makeRequest(messages);
       if (!rest?.content) throw new Error('No response content received.');
       // @ts-ignore

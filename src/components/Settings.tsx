@@ -16,6 +16,7 @@ import {
   DEFAULT_SCHEMA_VALUE,
   DEFAULT_SCHEMA_HTML,
   PromptEngineeringMode,
+  PromptSenderRole,
   defaultSettings,
   EXTENSION_KEY,
 } from '../config.js';
@@ -188,6 +189,22 @@ export const WTrackerSettings: FC = () => {
                 <option value="native">Native API</option>
                 <option value="json">Prompt Engineering (JSON)</option>
                 <option value="xml">Prompt Engineering (XML)</option>
+              </select>
+            </div>
+
+            <div className="setting-row">
+              <label>Prompt Sender Role</label>
+              <select
+                className="text_pole"
+                value={settings.promptRole}
+                onChange={(e) =>
+                  updateAndRefresh((s) => {
+                    s.promptRole = e.target.value as PromptSenderRole;
+                  })
+                }
+              >
+                <option value="user">User</option>
+                <option value="assistant">Assistant</option>
               </select>
             </div>
 
